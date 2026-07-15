@@ -7,9 +7,17 @@ import 'widgets/jarvis_orb.dart';
 
 /// The full-screen, colorful Jarvis conversation. Jarvis speaks; the user types.
 class ConversationScreen extends StatefulWidget {
-  const ConversationScreen({super.key, required this.seed});
+  const ConversationScreen({
+    super.key,
+    required this.seed,
+    this.speakOpener = true,
+  });
 
   final ConversationSeed seed;
+
+  /// Whether to speak the opener on open. False when the overlay already spoke
+  /// it (a breach), true for on-demand previews.
+  final bool speakOpener;
 
   @override
   State<ConversationScreen> createState() => _ConversationScreenState();
@@ -25,7 +33,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
   void initState() {
     super.initState();
     _c.addListener(_onChange);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _c.start());
+    if (widget.speakOpener) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _c.start());
+    }
   }
 
   void _onChange() {

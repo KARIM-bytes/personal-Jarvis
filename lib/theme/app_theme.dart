@@ -6,10 +6,16 @@ class AppTheme {
 
   static const Color accent = Color(0xFF2EC5FF);
   static const Color accentDim = Color(0xFF1B7FA8);
-  static const Color surface = Color(0xFF12161C);
-  static const Color surfaceRaised = Color(0xFF1B222B);
-  static const Color background = Color(0xFF0B0E12);
-  static const Color danger = Color(0xFFFF6B6B);
+  static const Color surface = Color(0xFF0A0A0C);
+  static const Color surfaceRaised = Color(0xFF161618);
+  static const Color background = Color(0xFF000000);
+  static const Color danger = Color(0xFFFF453A);
+
+  // Apple-Fitness-style ring palette (used for the usage rings).
+  static const Color ringMove = Color(0xFFFF375F);
+  static const Color ringExercise = Color(0xFFA5FF00);
+  static const Color ringStand = Color(0xFF2EC5FF);
+  static const Color ringOver = Color(0xFFFF453A);
 
   static ThemeData get dark {
     final base = ThemeData.dark(useMaterial3: true);

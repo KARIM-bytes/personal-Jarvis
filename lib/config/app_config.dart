@@ -7,8 +7,10 @@
 class AppConfig {
   AppConfig._();
 
-  /// How often the background check samples today's usage totals.
-  static const Duration checkInterval = Duration(minutes: 15);
+  /// How often the background check samples today's usage totals. Kept short so
+  /// the pop-up lands within a minute of a budget being crossed — a late nudge
+  /// is a useless nudge.
+  static const Duration checkInterval = Duration(minutes: 1);
 
   /// Minimum gap between two guide messages about the *same* app in one day.
   static const Duration perAppCooldown = Duration(hours: 3);

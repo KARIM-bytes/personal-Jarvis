@@ -7,10 +7,10 @@ import 'conversation_screen.dart';
 import 'goals_sheet.dart';
 import 'manage_apps_sheet.dart';
 import 'settings_sheet.dart';
+import 'widgets/activity_ring.dart';
 import 'widgets/guide_message_tile.dart';
-import 'widgets/jarvis_core.dart';
+import 'widgets/jarvis_orb.dart';
 import 'widgets/permission_tile.dart';
-import 'widgets/usage_bar_tile.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.controller});
@@ -24,6 +24,13 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   AppController get _c => widget.controller;
   bool _inConversation = false;
+
+  static const List<Color> _ringPalette = [
+    AppTheme.ringStand,
+    AppTheme.ringMove,
+    AppTheme.ringExercise,
+    Color(0xFF7A5CFF),
+  ];
 
   @override
   void initState() {
@@ -46,17 +53,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// If a breach queued a nudge, open it as a conversation.
+  /// If a breach queued a nudge, open it as a conversation. The overlay already
+  /// spoke the opener, so don't repeat it here.
   Future<void> _checkPending() async {
     if (_inConversation) return;
     final seed = await _c.takePendingConversation();
-    if (seed != null && mounted) _openConversation(seed);
+    if (seed != null && mounted) {
+      _openConversation(seed, speakOpener: false);
+    }
   }
 
-  Future<void> _openConversation(ConversationSeed seed) async {
+  Future<void> _openConversation(
+    ConversationSeed seed, {
+    bool speakOpener = true,
+  }) async {
     _inConversation = true;
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ConversationScreen(seed: seed)),
+      MaterialPageRoute(
+        builder: (_) =>
+            ConversationScreen(seed: seed, speakOpener: speakOpener),
+      ),
     );
     _inConversation = false;
   }
@@ -64,65 +80,171 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('JARVIS',
-            style: TextStyle(letterSpacing: 6, fontWeight: FontWeight.w700)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => SettingsSheet.show(context, _c),
-          ),
-        ],
-      ),
-      body: ListenableBuilder(
-        listenable: _c,
-        builder: (context, _) {
-          return RefreshIndicator(
-            onRefresh: _c.refresh,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-              children: [
-                _statusHeader(),
-                const SizedBox(height: 24),
-                _primaryButton(),
-                const SizedBox(height: 20),
-                if (!_c.isReady || !_c.hasOverlayPermission) ...[
-                  _setupCard(),
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: _c,
+          builder: (context, _) {
+            return RefreshIndicator(
+              onRefresh: _c.refresh,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+                children: [
+                  _summaryHeader(),
+                  const SizedBox(height: 18),
+                  if (!_c.isReady || !_c.hasOverlayPermission) ...[
+                    _setupCard(),
+                    const SizedBox(height: 16),
+                  ],
+                  _ringsCard(),
                   const SizedBox(height: 16),
+                  _primaryButton(),
+                  const SizedBox(height: 16),
+                  _goalsCard(),
+                  const SizedBox(height: 16),
+                  _previewButton(),
+                  const SizedBox(height: 24),
+                  _messagesSection(),
                 ],
-                _goalsCard(),
-                const SizedBox(height: 16),
-                _watchedCard(),
-                const SizedBox(height: 16),
-                _previewButton(),
-                const SizedBox(height: 24),
-                _messagesSection(),
-              ],
-            ),
-          );
-        },
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _statusHeader() {
-    final running = _c.isRunning;
-    return Column(
+  Widget _summaryHeader() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const SizedBox(height: 8),
-        JarvisCore(active: running),
-        const SizedBox(height: 16),
-        Text(running ? 'Guiding you' : 'Paused',
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 4),
-        Text(
-          running
-              ? 'Watching your time so it serves your goals.'
-              : 'Turn on your guide to get nudged back on track.',
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.white54),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Summary',
+                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text(
+                _todayLabel(),
+                style: const TextStyle(
+                    color: AppTheme.accent,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
         ),
+        IconButton(
+          icon: const Icon(Icons.settings_outlined, color: Colors.white54),
+          onPressed: () => SettingsSheet.show(context, _c),
+        ),
+        const SizedBox(width: 2),
+        JarvisOrb(speaking: _c.isRunning, size: 52),
       ],
+    );
+  }
+
+  Widget _ringsCard() {
+    final watched = _c.watchedApps;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('Today',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => ManageAppsSheet.show(context, _c),
+                  icon: const Icon(Icons.tune, size: 18),
+                  label: const Text('Manage'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            if (watched.isEmpty)
+              _emptyRings()
+            else
+              SizedBox(
+                height: 150,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: watched.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 18),
+                  itemBuilder: (context, i) {
+                    final app = watched[i];
+                    final used = _c.usageFor(app.packageName).inMinutes;
+                    final budget = app.dailyBudget.inMinutes;
+                    final over = used > budget;
+                    final progress = budget == 0 ? 0.0 : used / budget;
+                    final color = over
+                        ? AppTheme.ringOver
+                        : _ringPalette[i % _ringPalette.length];
+                    return _ringColumn(app.label, used, budget, progress, color);
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _ringColumn(
+      String label, int used, int budget, double progress, Color color) {
+    return SizedBox(
+      width: 104,
+      child: Column(
+        children: [
+          ActivityRing(
+            progress: progress,
+            color: color,
+            size: 96,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('$used',
+                    style: const TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.w800, height: 1)),
+                const Text('min',
+                    style: TextStyle(color: Colors.white54, fontSize: 11)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text('$budget min goal',
+              style: TextStyle(color: color, fontSize: 11.5)),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyRings() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Add the apps that pull you off course, each with a daily budget.',
+            style: TextStyle(color: Colors.white54),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            onPressed: () => ManageAppsSheet.show(context, _c),
+            icon: const Icon(Icons.add),
+            label: const Text('Add an app'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -132,13 +254,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       height: 56,
       child: FilledButton.icon(
         style: FilledButton.styleFrom(
-          backgroundColor: running ? AppTheme.danger : AppTheme.accent,
+          backgroundColor: running ? AppTheme.surfaceRaised : AppTheme.accent,
           foregroundColor: running ? Colors.white : Colors.black,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
         icon: Icon(running ? Icons.pause_rounded : Icons.play_arrow_rounded),
-        label: Text(running ? 'Pause guide' : 'Activate guide',
+        label: Text(running ? 'Guide is on — pause' : 'Activate guide',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         onPressed: () async {
           await _c.toggleGuide();
@@ -247,56 +369,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _watchedCard() {
-    final watched = _c.watchedApps;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Text('Watched apps',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () => ManageAppsSheet.show(context, _c),
-                  icon: const Icon(Icons.tune, size: 18),
-                  label: const Text('Manage'),
-                ),
-              ],
-            ),
-            if (watched.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Add the apps that pull you off course, each with a daily '
-                      'budget.',
-                      style: TextStyle(color: Colors.white54),
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton.tonalIcon(
-                      onPressed: () => ManageAppsSheet.show(context, _c),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add an app'),
-                    ),
-                  ],
-                ),
-              )
-            else
-              for (final app in watched)
-                UsageBarTile(app: app, usage: _c.usageFor(app.packageName)),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _previewButton() {
     return OutlinedButton.icon(
       style: OutlinedButton.styleFrom(
@@ -305,7 +377,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         foregroundColor: AppTheme.accent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
-      icon: const Icon(Icons.chat_bubble_outline),
+      icon: const Icon(Icons.graphic_eq),
       label: const Text('Talk to Jarvis now'),
       onPressed: () async {
         final seed = await _c.buildPreviewSeed();
@@ -355,5 +427,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
       ],
     );
+  }
+
+  String _todayLabel() {
+    const days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    final now = DateTime.now();
+    return '${days[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}';
   }
 }

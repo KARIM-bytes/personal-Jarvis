@@ -56,7 +56,7 @@ class _OverlayBubbleState extends State<OverlayBubble> {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.black.withValues(alpha: 0.55),
+      color: Colors.black.withValues(alpha: 0.92),
       child: Center(
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -66,7 +66,7 @@ class _OverlayBubbleState extends State<OverlayBubble> {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF16233A), Color(0xFF1B1030)],
+              colors: [Color(0xFF0C1524), Color(0xFF120A22)],
             ),
             border: Border.all(color: const Color(0xFF2EC5FF), width: 1.2),
             boxShadow: const [

@@ -9,6 +9,7 @@ import 'goals_repository.dart';
 import 'guide_brain.dart';
 import 'llm_client.dart';
 import 'overlay_service.dart';
+import 'tts_service.dart';
 import 'usage_stats_service.dart';
 
 @pragma('vm:entry-point')
@@ -25,6 +26,7 @@ class GuideTaskHandler extends TaskHandler {
   final GoalsRepository _repo = GoalsRepository();
   final LlmClient _llm = LlmClient();
   final OverlayService _overlay = OverlayService();
+  final TtsService _tts = TtsService();
   final GuideBrain _brain = GuideBrain(cooldown: AppConfig.perAppCooldown);
 
   bool _busy = false;
@@ -92,6 +94,12 @@ class GuideTaskHandler extends TaskHandler {
       await _overlay.showBubble(text);
     } catch (_) {
       // Overlay permission may be off; the notification is the fallback.
+    }
+    // Speak the opener the moment Jarvis appears.
+    try {
+      await _tts.speak(text);
+    } catch (_) {
+      // TTS may be unavailable in this isolate; the conversation still speaks.
     }
 
     FlutterForegroundTask.updateService(
