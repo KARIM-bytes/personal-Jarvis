@@ -4,6 +4,7 @@ import android.app.Application
 import com.pravera.flutter_foreground_task.FlutterForegroundTaskLifecycleListener
 import com.pravera.flutter_foreground_task.FlutterForegroundTaskPlugin
 import com.pravera.flutter_foreground_task.FlutterForegroundTaskStarter
+import flutter.overlay.window.flutter_overlay_window.FlutterOverlayWindowPlugin
 import io.flutter.embedding.engine.FlutterEngine
 
 /**
@@ -19,6 +20,9 @@ class JarvisApplication : Application() {
             override fun onEngineCreate(flutterEngine: FlutterEngine?) {
                 flutterEngine?.let {
                     UsageChannel.register(it, applicationContext)
+                    // Lets the background isolate pop the "over other apps"
+                    // overlay via flutter_overlay_window.
+                    it.plugins.add(FlutterOverlayWindowPlugin())
                 }
             }
 

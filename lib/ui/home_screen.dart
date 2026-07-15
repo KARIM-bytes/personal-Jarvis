@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../models/chat_message.dart';
 import '../state/app_controller.dart';
 import '../theme/app_theme.dart';
+import 'conversation_screen.dart';
 import 'goals_sheet.dart';
 import 'manage_apps_sheet.dart';
 import 'settings_sheet.dart';
@@ -21,11 +23,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   AppController get _c => widget.controller;
+  bool _inConversation = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkPending());
   }
 
   @override
@@ -38,7 +42,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _c.refresh();
+      _checkPending();
     }
+  }
+
+  /// If a breach queued a nudge, open it as a conversation.
+  Future<void> _checkPending() async {
+    if (_inConversation) return;
+    final seed = await _c.takePendingConversation();
+    if (seed != null && mounted) _openConversation(seed);
+  }
+
+  Future<void> _openConversation(ConversationSeed seed) async {
+    _inConversation = true;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ConversationScreen(seed: seed)),
+    );
+    _inConversation = false;
   }
 
   @override
@@ -66,7 +86,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 const SizedBox(height: 24),
                 _primaryButton(),
                 const SizedBox(height: 20),
-                if (!_c.isReady) ...[_setupCard(), const SizedBox(height: 16)],
+                if (!_c.isReady || !_c.hasOverlayPermission) ...[
+                  _setupCard(),
+                  const SizedBox(height: 16),
+                ],
                 _goalsCard(),
                 const SizedBox(height: 16),
                 _watchedCard(),
@@ -158,6 +181,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               subtitle: 'So your guide can text you.',
               granted: _c.notificationsGranted,
               onTap: _c.requestNotificationPermission,
+            ),
+            PermissionTile(
+              icon: Icons.picture_in_picture_alt_outlined,
+              title: 'Jarvis pop-up',
+              subtitle: 'Let Jarvis appear over other apps to talk to you.',
+              granted: _c.hasOverlayPermission,
+              onTap: _c.requestOverlayPermission,
             ),
           ],
         ),
@@ -276,8 +306,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       icon: const Icon(Icons.chat_bubble_outline),
-      label: const Text('Preview a guide message'),
-      onPressed: () => _c.previewMessage(),
+      label: const Text('Talk to Jarvis now'),
+      onPressed: () async {
+        final seed = await _c.buildPreviewSeed();
+        if (mounted) _openConversation(seed);
+      },
     );
   }
 

@@ -36,6 +36,10 @@ class AppConfig {
   static const String prefsMessageState = 'message_state';
   static const String prefsApiKey = 'llm_api_key';
 
+  /// A nudge waiting to open as a conversation (written by the background check
+  /// on a breach, read by the app when it comes to the front).
+  static const String prefsPendingConversation = 'pending_conversation';
+
   // --- LLM (optional) -------------------------------------------------------
 
   static const String llmEndpoint = 'https://api.anthropic.com/v1/messages';
@@ -63,5 +67,29 @@ class AppConfig {
         'but firmly point out the gap between this and what they said they want '
         'to achieve, and nudge them back. Address them directly. No preamble, '
         'no quotes, no emoji.';
+  }
+
+  /// System framing for the back-and-forth conversation after the pop-up. The
+  /// user types; Jarvis replies out loud.
+  static String conversationSystem({
+    required String goals,
+    required String appLabel,
+    required int minutesSpent,
+    required int budgetMinutes,
+  }) {
+    final goalsBlock = goals.trim().isEmpty
+        ? 'The user has not written specific goals; speak to focus and '
+            'intentional time.'
+        : 'The user\'s stated goals:\n$goals';
+
+    return 'You are Jarvis, the user\'s personal guide — warm, witty, and '
+        'genuinely on their side, like a mentor who wants them to win. '
+        'You just pulled them aside because they have spent $minutesSpent '
+        'minutes on $appLabel today, past their $budgetMinutes-minute budget. '
+        '$goalsBlock\n\n'
+        'Have a short spoken conversation. Keep every reply to 1-2 sentences, '
+        'natural and human — this is being read aloud. Take them seriously, '
+        'help them decide what to do next, and do not lecture. No emoji, no '
+        'stage directions, no markdown.';
   }
 }

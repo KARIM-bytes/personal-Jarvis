@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
+import '../models/chat_message.dart';
 import '../models/message_state.dart';
 import '../models/watched_app.dart';
 
@@ -63,6 +64,26 @@ class GoalsRepository {
       AppConfig.prefsMessageState,
       jsonEncode(AppMessageState.encodeMap(state)),
     );
+  }
+
+  Future<void> savePendingConversation(ConversationSeed seed) async {
+    final prefs = await _prefs;
+    await prefs.setString(
+        AppConfig.prefsPendingConversation, jsonEncode(seed.toJson()));
+  }
+
+  /// Returns and clears any nudge waiting to open as a conversation.
+  Future<ConversationSeed?> takePendingConversation() async {
+    final prefs = await _prefs;
+    final raw = prefs.getString(AppConfig.prefsPendingConversation);
+    if (raw == null || raw.isEmpty) return null;
+    await prefs.remove(AppConfig.prefsPendingConversation);
+    try {
+      return ConversationSeed.fromJson(
+          jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<String?> loadApiKey() async {

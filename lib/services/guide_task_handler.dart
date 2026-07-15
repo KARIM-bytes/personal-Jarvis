@@ -1,12 +1,14 @@
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import '../config/app_config.dart';
+import '../models/chat_message.dart';
 import '../models/guide_message.dart';
 import '../models/message_state.dart';
 import '../models/watched_app.dart';
 import 'goals_repository.dart';
 import 'guide_brain.dart';
 import 'llm_client.dart';
+import 'overlay_service.dart';
 import 'usage_stats_service.dart';
 
 @pragma('vm:entry-point')
@@ -22,6 +24,7 @@ class GuideTaskHandler extends TaskHandler {
   final UsageStatsService _usage = UsageStatsService();
   final GoalsRepository _repo = GoalsRepository();
   final LlmClient _llm = LlmClient();
+  final OverlayService _overlay = OverlayService();
   final GuideBrain _brain = GuideBrain(cooldown: AppConfig.perAppCooldown);
 
   bool _busy = false;
@@ -75,8 +78,24 @@ class GuideTaskHandler extends TaskHandler {
       budgetMinutes: budget,
     );
 
+    // Stash the nudge so the app can open it as a conversation, and pop the
+    // colorful overlay over whatever the user is doing.
+    final seed = ConversationSeed(
+      appLabel: app.label,
+      appPackage: app.packageName,
+      minutesSpent: minutes,
+      budgetMinutes: budget,
+      opener: text,
+    );
+    await _repo.savePendingConversation(seed);
+    try {
+      await _overlay.showBubble(text);
+    } catch (_) {
+      // Overlay permission may be off; the notification is the fallback.
+    }
+
     FlutterForegroundTask.updateService(
-      notificationTitle: 'Your guide',
+      notificationTitle: 'Jarvis wants a word',
       notificationText: text,
     );
     FlutterForegroundTask.sendDataToMain(

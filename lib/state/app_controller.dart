@@ -3,11 +3,13 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import '../config/app_config.dart';
 import '../models/app_usage.dart';
+import '../models/chat_message.dart';
 import '../models/guide_message.dart';
 import '../models/watched_app.dart';
 import '../services/goals_repository.dart';
 import '../services/guide_task_handler.dart';
 import '../services/llm_client.dart';
+import '../services/overlay_service.dart';
 import '../services/usage_stats_service.dart';
 
 /// A candidate app for the "add distraction" picker.
@@ -19,10 +21,12 @@ class AppController extends ChangeNotifier {
   final UsageStatsService _usage = UsageStatsService();
   final GoalsRepository _repo = GoalsRepository();
   final LlmClient _llm = LlmClient();
+  final OverlayService _overlay = OverlayService();
 
   bool _isRunning = false;
   bool _hasUsageAccess = false;
   bool _notificationsGranted = false;
+  bool _hasOverlayPermission = false;
   bool _hasApiKey = false;
   String _goals = '';
   List<WatchedApp> _watchedApps = [];
@@ -32,6 +36,7 @@ class AppController extends ChangeNotifier {
   bool get isRunning => _isRunning;
   bool get hasUsageAccess => _hasUsageAccess;
   bool get notificationsGranted => _notificationsGranted;
+  bool get hasOverlayPermission => _hasOverlayPermission;
   bool get hasApiKey => _hasApiKey;
   bool get isReady => _hasUsageAccess && _notificationsGranted;
   String get goals => _goals;
@@ -73,6 +78,7 @@ class AppController extends ChangeNotifier {
     _hasUsageAccess = await _usage.hasUsageAccess();
     final notif = await FlutterForegroundTask.checkNotificationPermission();
     _notificationsGranted = notif == NotificationPermission.granted;
+    _hasOverlayPermission = await _overlay.hasPermission();
     _goals = await _repo.loadGoals();
     _watchedApps = await _repo.loadWatchedApps();
     _hasApiKey = (await _repo.loadApiKey())?.isNotEmpty ?? false;
@@ -98,6 +104,16 @@ class AppController extends ChangeNotifier {
     await FlutterForegroundTask.requestNotificationPermission();
     await refresh();
   }
+
+  Future<void> requestOverlayPermission() async {
+    await _overlay.requestPermission();
+    // Returns via the OS back stack; refresh() runs on resume.
+  }
+
+  /// Any nudge waiting to open as a conversation (from a breach). Cleared once
+  /// returned.
+  Future<ConversationSeed?> takePendingConversation() =>
+      _repo.takePendingConversation();
 
   // --- Goals & watched apps -------------------------------------------------
 
@@ -186,13 +202,9 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Previews a guide message now. Routes through the running service, else
-  /// composes locally so the user can hear the Guide's voice during setup.
-  Future<void> previewMessage() async {
-    if (_isRunning) {
-      FlutterForegroundTask.sendDataToTask('{"type":"test"}');
-      return;
-    }
+  /// Builds a conversation seed for the "preview" button, so the user can talk
+  /// to Jarvis on demand during setup without waiting for a real breach.
+  Future<ConversationSeed> buildPreviewSeed() async {
     final app = _watchedApps.isNotEmpty
         ? _watchedApps.first
         : const WatchedApp(
@@ -204,23 +216,18 @@ class AppController extends ChangeNotifier {
     final usage = actual > app.dailyBudget
         ? actual
         : app.dailyBudget + const Duration(minutes: 15);
-    final text = await _llm.composeGuideMessage(
+    final opener = await _llm.composeGuideMessage(
       appLabel: app.label,
       minutesSpent: usage.inMinutes,
       budgetMinutes: app.dailyBudget.inMinutes,
     );
-    _messages.insert(
-      0,
-      GuideMessage(
-        appLabel: app.label,
-        appPackage: app.packageName,
-        text: text,
-        timestamp: DateTime.now(),
-        minutesSpent: usage.inMinutes,
-        budgetMinutes: app.dailyBudget.inMinutes,
-      ),
+    return ConversationSeed(
+      appLabel: app.label,
+      appPackage: app.packageName,
+      minutesSpent: usage.inMinutes,
+      budgetMinutes: app.dailyBudget.inMinutes,
+      opener: opener,
     );
-    notifyListeners();
   }
 
   void clearMessages() {
