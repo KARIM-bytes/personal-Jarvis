@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
-import 'state/monitor_controller.dart';
+import 'state/app_controller.dart';
 import 'theme/app_theme.dart';
 import 'ui/home_screen.dart';
 
@@ -20,7 +20,7 @@ class JarvisApp extends StatefulWidget {
 }
 
 class _JarvisAppState extends State<JarvisApp> {
-  final MonitorController _controller = MonitorController();
+  final AppController _controller = AppController();
 
   @override
   void initState() {

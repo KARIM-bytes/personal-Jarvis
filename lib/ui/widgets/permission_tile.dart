@@ -31,10 +31,7 @@ class PermissionTile extends StatelessWidget {
       ),
       trailing: granted
           ? const Icon(Icons.check_circle, color: AppTheme.accent)
-          : FilledButton.tonal(
-              onPressed: onTap,
-              child: const Text('Grant'),
-            ),
+          : FilledButton.tonal(onPressed: onTap, child: const Text('Grant')),
       onTap: granted ? null : onTap,
     );
   }

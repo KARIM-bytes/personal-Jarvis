@@ -1,95 +1,94 @@
-# Jarvis — Digital Wellbeing Nagger (Flutter v1)
+# Jarvis — Your Personal Guide (Flutter)
 
-An Android app that watches which app is in the foreground and, when you break a
-rule (v1: *"Instagram open for more than 2 continuous minutes"*), has an
-AI-voiced Jarvis persona call you out — instantly, out loud.
+A calm, goal-aware Android app. Instead of watching your screen in real time, it
+reads the phone's own **aggregated usage** (the numbers Digital Wellbeing
+already collects), compares each app you care about against a **daily budget**,
+and — when you go over — has an **AI tutor** message you, tying the overuse back
+to the goals you set. No overlay, no voice, no taking over your screen.
 
-This is the **first version**: a Flutter port of the PRD that proves the
-end-to-end loop (detect → decide → generate line → speak → log) with a single
-hardcoded rule.
+> Started as a real-time "nagger" (see history); reworked into a personal guide:
+> your usage data + your life goals → a thoughtful nudge, delivered as a
+> notification.
 
 ## The loop
 
 ```
 Foreground service (background isolate)
-  every 5s ─► read foreground app (UsageStats)
-           ─► MonitorEngine: continuous time on watched app ≥ threshold?
-           ─► on breach: LLM (or built-in line) ─► TextToSpeech + notification
-           ─► report NagEvent to the UI isolate  ─► shown in the Nag log
+  every 15 min ─► read today's usage totals (UsageStats / Digital Wellbeing)
+              ─► GuideBrain: is any watched app over its daily budget?
+              ─► if so: AI tutor writes a nudge (usage + your goals)
+              ─► deliver as a notification  ─► report to the UI's message log
 ```
 
-## What works in v1
+## What it does
 
-- Real-time foreground-app detection via Android **UsageStats**.
-- One hardcoded rule (Instagram, 2 min) evaluated by a pure, unit-tested
-  `MonitorEngine`.
-- Runs in a **foreground service** so it survives app switches / screen off.
-- Spoken scold via the built-in **TextToSpeech** engine, mirrored to the
-  persistent notification (backup if audio is muted).
-- Scold lines from an **Anthropic** model if you add an API key, otherwise a
-  built-in pool — so the loop always completes.
-- In-app **Nag log** and a **"Test a nag now"** button to demo without waiting.
-
-Deliberately cut from v1 (see PRD non-goals / post-MVP): settings for rules, rule
-persistence, overlay popups, multiple rules, usage-trend awareness, custom voice.
+- Reads **aggregated daily usage** per app via Android UsageStats — not live
+  foreground spying.
+- **Hybrid goals**: free-text life goals *plus* a list of "distraction" apps,
+  each with a daily time budget.
+- **Threshold-triggered**: the AI messages you when a flagged app crosses its
+  budget (again, once, if you double it) — capped and cooled-down so it never
+  spams.
+- **Tutor voice**: messages reference *your* goals. Uses an Anthropic model if
+  you add a key; otherwise built-in lines so it always works.
+- **Delivery = a notification.** No TTS, no overlay, no screen control.
+- In-app dashboard: today's usage vs budget per app, editable goals, and a
+  message history.
 
 ## Project layout
 
 ```
 lib/
-  config/app_config.dart          # all the hardcoded knobs (rule, thresholds, LLM)
-  models/                         # NagRule, NagEvent (isolate-safe JSON)
+  config/app_config.dart          # intervals, budgets, prompt, prefs keys
+  models/                         # WatchedApp, AppUsage/UsageSnapshot,
+                                  #   GuideMessage, AppMessageState
   services/
-    foreground_app_service.dart   # Dart side of the UsageStats channel
-    monitor_engine.dart           # pure rule state machine (unit tested)
+    usage_stats_service.dart      # Dart side of the UsageStats channel
+    guide_brain.dart              # pure decision logic (unit tested)
+    goals_repository.dart         # goals / apps / state / key persistence
     llm_client.dart               # Anthropic call + built-in fallback lines
-    tts_service.dart              # flutter_tts wrapper
-    jarvis_task_handler.dart      # the loop, running in the background isolate
-  state/monitor_controller.dart   # UI state, talks to the service
-  ui/                             # home screen, settings, widgets
+    guide_task_handler.dart       # the 15-min check, in the background isolate
+  state/app_controller.dart       # UI state, talks to the service
+  ui/                             # dashboard, goals/apps/settings sheets, widgets
 android/app/src/main/kotlin/.../
-  ForegroundAppChannel.kt         # UsageStats foreground detection
+  UsageChannel.kt                 # aggregated daily UsageStats + app labels
   MainActivity.kt                 # registers the channel on the UI engine
   JarvisApplication.kt            # registers it on the background-task engine too
 ```
 
 The background service runs in its **own FlutterEngine**, which doesn't
-auto-register app plugins — `JarvisApplication` hooks
-`flutter_foreground_task`'s lifecycle to install the foreground-app channel on
-that engine as well. Without it, the background loop couldn't read the
-foreground app.
+auto-register app plugins — `JarvisApplication` hooks `flutter_foreground_task`'s
+lifecycle to install the `jarvis/usage` channel on that engine as well.
 
 ## Run it
 
 ```bash
 flutter pub get
-flutter run              # needs a real device (an emulator has no other apps to catch)
+flutter run              # needs a real device with real usage history
 ```
 
 Then in the app:
 
-1. **Grant Usage access** — opens the system screen; enable it for Jarvis.
-2. **Grant Notifications** — required for the foreground service.
-3. **Activate Jarvis**, or hit **Test a nag now** to hear it immediately.
-4. *(optional)* Settings → paste an Anthropic API key for freshly written scolds.
-
-### Verifying against the PRD success criteria (on device)
-
-- Open Instagram, wait ~2 min → a spoken nag fires within a few seconds.
-- Background the app / turn the screen off for 30 min → the service keeps
-  running (persistent "Jarvis is watching" notification stays up).
+1. **Grant Usage access** + **Notifications**.
+2. **Set your goals** (what you're working toward).
+3. **Manage → add the apps** that distract you, each with a daily budget.
+4. **Activate guide.** Use **Preview a guide message** to see its voice now.
+5. *(optional)* Settings → add an Anthropic API key for freshly written nudges.
 
 ## Tests
 
 ```bash
-flutter test        # MonitorEngine: threshold, once-per-session, cooldown, reset
+flutter test        # GuideBrain: budget / escalation / cooldown / daily reset
 flutter analyze
 ```
 
 ## Notes / limitations
 
-- **Android only** (foreground detection is an Android capability).
-- The optional API key is stored on-device via `shared_preferences`. Fine for a
-  personal build; a production app should proxy LLM calls through a backend
-  rather than shipping a key.
-- `minSdk 24`.
+- **Android only** (UsageStats is an Android capability).
+- Uses `QUERY_ALL_PACKAGES` to resolve app names — fine for a personal
+  sideloaded build, but Play Store restricts it.
+- The optional API key is stored on-device; a production app should proxy LLM
+  calls through a backend.
+- Background checks run ~every 15 min (foreground-service interval), so a budget
+  breach is noticed within that window rather than instantly — by design, this
+  is a guide, not a real-time watchdog. `minSdk 24`.

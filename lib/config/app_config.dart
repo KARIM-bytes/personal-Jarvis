@@ -1,50 +1,67 @@
-/// Central configuration for the Jarvis Wellbeing Nagger.
+/// Central configuration for the Guide.
 ///
-/// v1 keeps everything hardcoded here (per the PRD MVP scope) except the
-/// optional LLM API key, which the user can set at runtime in Settings.
+/// The Guide reads the phone's own aggregated usage (the Digital Wellbeing
+/// numbers, via UsageStats), compares each watched app against a daily budget,
+/// and — when a budget is crossed — has an AI tutor message the user, tying the
+/// overuse back to the goals they set.
 class AppConfig {
   AppConfig._();
 
-  /// Package name of the app Jarvis watches in v1.
-  static const String watchedPackage = 'com.instagram.android';
+  /// How often the background check samples today's usage totals.
+  static const Duration checkInterval = Duration(minutes: 15);
 
-  /// Human-friendly label for the watched app.
-  static const String watchedLabel = 'Instagram';
+  /// Minimum gap between two guide messages about the *same* app in one day.
+  static const Duration perAppCooldown = Duration(hours: 3);
 
-  /// How long the watched app must stay continuously in the foreground
-  /// before Jarvis scolds you.
-  static const Duration nagThreshold = Duration(minutes: 2);
+  /// Budget applied to a newly added watched app until the user changes it.
+  static const int defaultBudgetMinutes = 30;
 
-  /// How often the background service samples the foreground app.
-  static const Duration pollInterval = Duration(seconds: 5);
+  /// A short curated list to seed the "add distraction" picker, so the user
+  /// isn't starting from a blank slate.
+  static const Map<String, String> commonDistractions = {
+    'com.instagram.android': 'Instagram',
+    'com.google.android.youtube': 'YouTube',
+    'com.zhiliaoapp.musically': 'TikTok',
+    'com.twitter.android': 'X',
+    'com.reddit.frontpage': 'Reddit',
+    'com.facebook.katana': 'Facebook',
+    'com.snapchat.android': 'Snapchat',
+    'com.netflix.mediaclient': 'Netflix',
+  };
 
-  /// Minimum gap between two nags for the same app, so Jarvis does not
-  /// turn into a broken record.
-  static const Duration nagCooldown = Duration(minutes: 3);
+  // --- Persistence keys -----------------------------------------------------
 
-  /// Foreground-service notification channel.
-  static const String notificationChannelId = 'jarvis_monitor';
-  static const String notificationChannelName = 'Jarvis Monitoring';
-  static const String notificationChannelDescription =
-      'Keeps Jarvis watching over your shoulder in the background.';
+  static const String prefsGoals = 'life_goals';
+  static const String prefsWatchedApps = 'watched_apps';
+  static const String prefsMessageState = 'message_state';
+  static const String prefsApiKey = 'llm_api_key';
 
   // --- LLM (optional) -------------------------------------------------------
 
-  /// SharedPreferences key under which the optional API key is stored.
-  static const String prefsApiKey = 'llm_api_key';
-
-  /// Anthropic Messages API endpoint. The client only calls this when an API
-  /// key has been provided; otherwise it falls back to built-in scold lines.
   static const String llmEndpoint = 'https://api.anthropic.com/v1/messages';
   static const String llmModel = 'claude-haiku-4-5';
   static const String llmApiVersion = '2023-06-01';
-  static const int llmMaxTokens = 80;
+  static const int llmMaxTokens = 120;
 
-  /// Prompt template used to generate a scold line.
-  static String nagPrompt(String appLabel, Duration usage) {
-    final minutes = usage.inMinutes;
-    return 'You are Jarvis, a dry, witty AI assistant. In ONE short sentence, '
-        'scold the user for wasting about $minutes minutes on $appLabel right '
-        'now. Be cheeky but not cruel. No quotes, no emoji, no preamble.';
+  /// Builds the prompt that turns raw usage + goals into a tutor's nudge.
+  static String guidePrompt({
+    required String goals,
+    required String appLabel,
+    required int minutesSpent,
+    required int budgetMinutes,
+  }) {
+    final goalsBlock = goals.trim().isEmpty
+        ? 'The user has not written specific goals; speak to general focus and '
+            'intentional time.'
+        : 'The user\'s stated goals in life:\n$goals';
+
+    return 'You are the user\'s personal guide and tutor — warm, direct, and '
+        'invested in their growth, like a mentor who actually cares. '
+        '$goalsBlock\n\n'
+        'Today they have spent $minutesSpent minutes on $appLabel, past their '
+        'self-set budget of $budgetMinutes minutes. In 1-2 sentences, gently '
+        'but firmly point out the gap between this and what they said they want '
+        'to achieve, and nudge them back. Address them directly. No preamble, '
+        'no quotes, no emoji.';
   }
 }

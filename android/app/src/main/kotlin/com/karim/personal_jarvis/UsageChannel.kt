@@ -1,7 +1,6 @@
 package com.karim.personal_jarvis
 
 import android.app.AppOpsManager
-import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
@@ -10,22 +9,17 @@ import android.os.Process
 import android.provider.Settings
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.util.Calendar
 
 /**
- * Native side of the `jarvis/foreground_app` method channel.
+ * Native side of the `jarvis/usage` channel — the app's window onto the phone's
+ * own aggregated usage data (the same numbers Digital Wellbeing shows).
  *
- * Registered on both the UI FlutterEngine (via [MainActivity]) and the
- * background-service FlutterEngine (via [JarvisApplication]) so the monitoring
- * isolate can query the foreground app. Kept as a process-wide singleton so the
- * last-known foreground package survives across the frequent polling calls,
- * which makes detection robust even when an app stays in front longer than the
- * UsageStats query window.
+ * Registered on both the UI engine ([MainActivity]) and the background-task
+ * engine ([JarvisApplication]) so the periodic goal check can read usage.
  */
-object ForegroundAppChannel {
-    private const val CHANNEL = "jarvis/foreground_app"
-
-    private var lastPackage: String? = null
-    private var lastQueryTime: Long = 0
+object UsageChannel {
+    private const val CHANNEL = "jarvis/usage"
 
     fun register(engine: FlutterEngine, context: Context) {
         val appContext = context.applicationContext
@@ -37,7 +31,7 @@ object ForegroundAppChannel {
                         openUsageAccessSettings(appContext)
                         result.success(null)
                     }
-                    "getForegroundApp" -> result.success(getForegroundApp(appContext))
+                    "getUsageToday" -> result.success(getUsageToday(appContext))
                     else -> result.notImplemented()
                 }
             }
@@ -69,22 +63,43 @@ object ForegroundAppChannel {
         context.startActivity(intent)
     }
 
-    private fun getForegroundApp(context: Context): String? {
-        if (!hasUsageAccess(context)) return null
+    /**
+     * Total foreground time per app since local midnight, as a list of
+     * { packageName, label, totalTimeMs }.
+     */
+    private fun getUsageToday(context: Context): List<Map<String, Any>> {
+        if (!hasUsageAccess(context)) return emptyList()
+
         val usm =
             context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val now = System.currentTimeMillis()
-        // First call looks back a minute; later calls only read new events.
-        val begin = if (lastQueryTime == 0L) now - 60_000 else lastQueryTime - 1_000
-        val events = usm.queryEvents(begin, now)
-        val event = UsageEvents.Event()
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
-            if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
-                lastPackage = event.packageName
+        val end = System.currentTimeMillis()
+        val begin = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val aggregated = usm.queryAndAggregateUsageStats(begin, end)
+        val pm = context.packageManager
+        val result = ArrayList<Map<String, Any>>()
+
+        for ((pkg, stats) in aggregated) {
+            val total = stats.totalTimeInForeground
+            if (total <= 0L) continue
+            val label = try {
+                pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+            } catch (_: Exception) {
+                pkg
             }
+            result.add(
+                mapOf(
+                    "packageName" to pkg,
+                    "label" to label,
+                    "totalTimeMs" to total,
+                ),
+            )
         }
-        lastQueryTime = now
-        return lastPackage
+        return result
     }
 }

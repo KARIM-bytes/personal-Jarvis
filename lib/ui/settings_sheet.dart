@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../state/monitor_controller.dart';
+import '../state/app_controller.dart';
 
-/// Bottom sheet for the one runtime setting v1 exposes: an optional LLM API
-/// key. Without it, Jarvis uses built-in scold lines.
+/// Optional LLM API key. Without it, the Guide uses built-in messages.
 class SettingsSheet extends StatefulWidget {
   const SettingsSheet({super.key, required this.controller});
 
-  final MonitorController controller;
+  final AppController controller;
 
-  static Future<void> show(BuildContext context, MonitorController c) {
+  static Future<void> show(BuildContext context, AppController c) {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -28,23 +27,11 @@ class SettingsSheet extends StatefulWidget {
 class _SettingsSheetState extends State<SettingsSheet> {
   final TextEditingController _keyController = TextEditingController();
   bool _obscure = true;
-  bool _saving = false;
 
   @override
   void dispose() {
     _keyController.dispose();
     super.dispose();
-  }
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    await widget.controller.setApiKey(_keyController.text);
-    if (!mounted) return;
-    setState(() => _saving = false);
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Saved.')),
-    );
   }
 
   @override
@@ -60,8 +47,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
           const SizedBox(height: 4),
           Text(
             widget.controller.hasApiKey
-                ? 'An LLM key is saved. Jarvis writes fresh scolds.'
-                : 'No LLM key. Jarvis uses built-in scold lines.',
+                ? 'An LLM key is saved. Your guide writes fresh, personal messages.'
+                : 'No LLM key. Your guide uses built-in messages.',
             style: const TextStyle(color: Colors.white54, fontSize: 13),
           ),
           const SizedBox(height: 20),
@@ -88,24 +75,19 @@ class _SettingsSheetState extends State<SettingsSheet> {
           Row(
             children: [
               TextButton(
-                onPressed: _saving
-                    ? null
-                    : () async {
-                        await widget.controller.setApiKey('');
-                        if (context.mounted) Navigator.of(context).pop();
-                      },
+                onPressed: () async {
+                  await widget.controller.setApiKey('');
+                  if (context.mounted) Navigator.of(context).pop();
+                },
                 child: const Text('Clear key'),
               ),
               const Spacer(),
               FilledButton(
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Save'),
+                onPressed: () async {
+                  await widget.controller.setApiKey(_keyController.text);
+                  if (context.mounted) Navigator.of(context).pop();
+                },
+                child: const Text('Save'),
               ),
             ],
           ),

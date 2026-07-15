@@ -4,11 +4,17 @@
     <!-- LLM API calls -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Read which app is in the foreground. Special access: the user grants it
-         from Settings; there is no runtime dialog. -->
+    <!-- Read aggregated app usage (the Digital Wellbeing data). Special access:
+         the user grants it from Settings; there is no runtime dialog. -->
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
+
+    <!-- Resolve human-readable app names for the usage/picker list. Play Store
+         restricts this, but this is a personal sideloaded build. -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
 
     <!-- Background foreground-service (flutter_foreground_task) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

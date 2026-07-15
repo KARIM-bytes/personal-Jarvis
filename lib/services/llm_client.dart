@@ -2,62 +2,71 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
+import 'goals_repository.dart';
 
-/// Produces a one-line Jarvis scold.
+/// Turns "app X is over budget, here are the user's goals" into a short,
+/// tutor-style nudge.
 ///
-/// If the user has saved an API key (Settings → LLM key), it asks an Anthropic
-/// model for a fresh line. Otherwise — and whenever the network call fails — it
-/// falls back to a built-in pool so the loop always completes. Per the PRD,
-/// proving the plumbing matters more than the wit.
+/// Uses an Anthropic model when the user has saved an API key; otherwise — and
+/// whenever the call fails — it falls back to built-in lines so a message is
+/// always produced.
 class LlmClient {
-  LlmClient({http.Client? httpClient}) : _http = httpClient ?? http.Client();
+  LlmClient({http.Client? httpClient, GoalsRepository? repository})
+      : _http = httpClient ?? http.Client(),
+        _repo = repository ?? GoalsRepository();
 
   final http.Client _http;
+  final GoalsRepository _repo;
   final Random _random = Random();
 
-  static const List<String> _fallbackLines = [
-    'Really? {app} again? Your future self is filing a complaint.',
-    "That's {minutes} minutes of {app} you're never getting back, sir.",
-    'I calculate a 0 percent chance this scroll improves your life.',
-    'Still on {app}? I was built for greatness, and yet here we are.',
-    "Put it down. {app} will survive without your undivided attention.",
-    'Fascinating. {minutes} minutes and counting. Shall I alert the biographers?',
-    "This is the part where a responsible assistant intervenes. So: stop.",
-    'You have now out-scrolled {minutes} minutes of your own ambitions.',
+  static const List<String> _fallbackWithGoals = [
+    'You wanted to work toward your goals today — {minutes} minutes on {app} is '
+        'time that could go there instead. Come back to it.',
+    "That's {minutes} minutes on {app}. Your future self, the one chasing what "
+        'you wrote down, is waiting. Let\'s redirect.',
+    'Be honest: is {app} moving you closer to what you said matters? {minutes} '
+        'minutes in, probably not. Small course-correct now.',
   ];
 
-  Future<String> generateNag({
+  static const List<String> _fallbackNoGoals = [
+    "{minutes} minutes on {app} today, past your {budget}-minute budget. Worth "
+        'a pause?',
+    'You set a {budget}-minute limit on {app} for a reason. You\'re at '
+        '{minutes}. Time to step away.',
+    'Gentle check-in: {app} is at {minutes} minutes. Let\'s spend the next hour '
+        'on something you\'ll be glad you did.',
+  ];
+
+  Future<String> composeGuideMessage({
     required String appLabel,
-    required Duration usage,
+    required int minutesSpent,
+    required int budgetMinutes,
   }) async {
-    final apiKey = await _readApiKey();
+    final goals = await _repo.loadGoals();
+    final apiKey = await _repo.loadApiKey();
+
     if (apiKey != null && apiKey.isNotEmpty) {
-      final line = await _generateViaAnthropic(
+      final line = await _viaAnthropic(
         apiKey: apiKey,
+        goals: goals,
         appLabel: appLabel,
-        usage: usage,
+        minutesSpent: minutesSpent,
+        budgetMinutes: budgetMinutes,
       );
       if (line != null && line.isNotEmpty) return line;
     }
-    return _fallbackLine(appLabel, usage);
+
+    return _fallback(goals, appLabel, minutesSpent, budgetMinutes);
   }
 
-  Future<String?> _readApiKey() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(AppConfig.prefsApiKey);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<String?> _generateViaAnthropic({
+  Future<String?> _viaAnthropic({
     required String apiKey,
+    required String goals,
     required String appLabel,
-    required Duration usage,
+    required int minutesSpent,
+    required int budgetMinutes,
   }) async {
     try {
       final response = await _http
@@ -74,12 +83,17 @@ class LlmClient {
               'messages': [
                 {
                   'role': 'user',
-                  'content': AppConfig.nagPrompt(appLabel, usage),
+                  'content': AppConfig.guidePrompt(
+                    goals: goals,
+                    appLabel: appLabel,
+                    minutesSpent: minutesSpent,
+                    budgetMinutes: budgetMinutes,
+                  ),
                 }
               ],
             }),
           )
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) return null;
       final decoded = jsonDecode(response.body) as Map<String, dynamic>;
@@ -92,16 +106,21 @@ class LlmClient {
       }
       return null;
     } catch (_) {
-      // Network/timeout/parse issues all fall back to a canned line.
       return null;
     }
   }
 
-  String _fallbackLine(String appLabel, Duration usage) {
-    final template = _fallbackLines[_random.nextInt(_fallbackLines.length)];
-    return template
+  String _fallback(
+    String goals,
+    String appLabel,
+    int minutesSpent,
+    int budgetMinutes,
+  ) {
+    final pool = goals.trim().isEmpty ? _fallbackNoGoals : _fallbackWithGoals;
+    return pool[_random.nextInt(pool.length)]
         .replaceAll('{app}', appLabel)
-        .replaceAll('{minutes}', usage.inMinutes.toString());
+        .replaceAll('{minutes}', minutesSpent.toString())
+        .replaceAll('{budget}', budgetMinutes.toString());
   }
 
   void dispose() => _http.close();

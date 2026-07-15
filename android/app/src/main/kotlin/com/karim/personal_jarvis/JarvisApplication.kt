@@ -9,16 +9,16 @@ import io.flutter.embedding.engine.FlutterEngine
 /**
  * flutter_foreground_task spins up a *separate* FlutterEngine for the
  * background task isolate, and that engine does not auto-register app plugins.
- * We hook its lifecycle here so the `jarvis/foreground_app` channel is available
- * inside the monitoring isolate — without it, the background loop could never
- * read the foreground app.
+ * We hook its lifecycle here so the `jarvis/usage` channel is available inside
+ * the background isolate — without it, the periodic goal check could never read
+ * the usage data.
  */
 class JarvisApplication : Application() {
     private val taskLifecycleListener =
         object : FlutterForegroundTaskLifecycleListener {
             override fun onEngineCreate(flutterEngine: FlutterEngine?) {
                 flutterEngine?.let {
-                    ForegroundAppChannel.register(it, applicationContext)
+                    UsageChannel.register(it, applicationContext)
                 }
             }
 
