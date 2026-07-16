@@ -11,7 +11,17 @@ import '../models/watched_app.dart';
 /// the watched apps + budgets, the Guide's per-app message state, and the
 /// optional API key. Backed by SharedPreferences so both isolates can reach it.
 class GoalsRepository {
-  Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
+  /// Prefs are cached per isolate; reload so the background service sees edits
+  /// the UI just saved (budgets, goals, API key) without a restart.
+  Future<SharedPreferences> get _prefs async {
+    final prefs = await SharedPreferences.getInstance();
+    try {
+      await prefs.reload();
+    } catch (_) {
+      // Stale cache is still better than failing the read.
+    }
+    return prefs;
+  }
 
   Future<String> loadGoals() async {
     final prefs = await _prefs;

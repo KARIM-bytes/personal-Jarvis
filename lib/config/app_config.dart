@@ -42,6 +42,21 @@ class AppConfig {
   /// on a breach, read by the app when it comes to the front).
   static const String prefsPendingConversation = 'pending_conversation';
 
+  // --- Voice ----------------------------------------------------------------
+
+  static const String prefsTtsVoiceName = 'tts_voice_name';
+  static const String prefsTtsVoiceLocale = 'tts_voice_locale';
+  static const String prefsTtsRate = 'tts_rate';
+  static const String prefsTtsPitch = 'tts_pitch';
+
+  static const String googleTtsEngine = 'com.google.android.tts';
+  static const double defaultTtsRate = 0.48;
+  static const double defaultTtsPitch = 1.02;
+
+  /// Spoken when previewing a voice in the picker.
+  static const String ttsSampleLine =
+      "At your service. This is how I'll sound when I call you out.";
+
   // --- LLM (optional) -------------------------------------------------------
 
   static const String llmEndpoint = 'https://api.anthropic.com/v1/messages';

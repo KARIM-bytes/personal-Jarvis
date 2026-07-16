@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../state/app_controller.dart';
+import '../theme/app_theme.dart';
+import 'voice_picker_sheet.dart';
 
 /// Optional LLM API key. Without it, the Guide uses built-in messages.
 class SettingsSheet extends StatefulWidget {
@@ -51,7 +53,29 @@ class _SettingsSheetState extends State<SettingsSheet> {
                 : 'No LLM key. Your guide uses built-in messages.',
             style: const TextStyle(color: Colors.white54, fontSize: 13),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AppTheme.accent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child:
+                  const Icon(Icons.record_voice_over, color: AppTheme.accent),
+            ),
+            title: const Text("Jarvis's voice",
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: const Text(
+              'Pick the voice, speed and pitch',
+              style: TextStyle(color: Colors.white54, fontSize: 12.5),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+            onTap: () => VoicePickerSheet.show(context),
+          ),
+          const Divider(color: Colors.white10, height: 24),
           TextField(
             controller: _keyController,
             obscureText: _obscure,
