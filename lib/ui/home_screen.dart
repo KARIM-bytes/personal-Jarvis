@@ -141,7 +141,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onPressed: () => SettingsSheet.show(context, _c),
         ),
         const SizedBox(width: 2),
-        JarvisOrb(speaking: _c.isRunning, size: 52),
+        // Breathing while the guide runs; dims when paused. Never still.
+        JarvisOrb(mood: OrbMood.idle, dormant: !_c.isRunning, size: 52),
       ],
     );
   }

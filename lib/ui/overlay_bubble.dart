@@ -76,7 +76,8 @@ class _OverlayBubbleState extends State<OverlayBubble> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const JarvisOrb(speaking: true, size: 96),
+              // Speaking cadence: the overlay voices its opener as it appears.
+              const JarvisOrb(mood: OrbMood.speaking, size: 96),
               const SizedBox(height: 16),
               const Text('JARVIS',
                   style: TextStyle(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/chat_message.dart';
@@ -28,6 +30,27 @@ class _ConversationScreenState extends State<ConversationScreen> {
       ConversationController(seed: widget.seed);
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
+  final JarvisOrbController _orb = JarvisOrbController();
+
+  /// True briefly after each keystroke so the orb "listens" while you type.
+  bool _typing = false;
+  Timer? _typingDecay;
+
+  OrbMood get _mood {
+    if (_c.speaking) return OrbMood.speaking;
+    if (_c.thinking) return OrbMood.thinking;
+    if (_typing) return OrbMood.listening;
+    return OrbMood.idle;
+  }
+
+  void _onTyped(String _) {
+    _orb.pulse();
+    if (!_typing) setState(() => _typing = true);
+    _typingDecay?.cancel();
+    _typingDecay = Timer(const Duration(milliseconds: 2500), () {
+      if (mounted) setState(() => _typing = false);
+    });
+  }
 
   @override
   void initState() {
@@ -54,6 +77,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   @override
   void dispose() {
+    _typingDecay?.cancel();
     _c.removeListener(_onChange);
     _c.dispose();
     _input.dispose();
@@ -63,7 +87,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   Future<void> _send() async {
     final text = _input.text;
+    if (text.trim().isEmpty) return;
     _input.clear();
+    // The orb gathers the message inward before the brain starts on it.
+    _orb.absorb();
+    _typingDecay?.cancel();
+    setState(() => _typing = false);
     await _c.sendUserMessage(text);
   }
 
@@ -97,7 +126,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
       child: Row(
         children: [
-          JarvisOrb(speaking: _c.speaking, size: 56),
+          JarvisOrb(mood: _mood, controller: _orb, size: 56),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -109,11 +138,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
                         fontWeight: FontWeight.w700,
                         fontSize: 16)),
                 Text(
-                  _c.speaking
-                      ? 'Speaking…'
-                      : _c.thinking
-                          ? 'Thinking…'
-                          : 'Your guide',
+                  switch (_mood) {
+                    OrbMood.speaking => 'Speaking…',
+                    OrbMood.thinking => 'Thinking…',
+                    OrbMood.listening => 'Listening…',
+                    OrbMood.idle => 'Your guide',
+                  },
                   style: const TextStyle(color: Colors.white54, fontSize: 12.5),
                 ),
               ],
@@ -201,6 +231,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
               controller: _input,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _send(),
+              onChanged: _onTyped,
               minLines: 1,
               maxLines: 4,
               decoration: InputDecoration(
