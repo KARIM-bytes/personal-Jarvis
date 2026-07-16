@@ -14,10 +14,6 @@ class SettingsSheet extends StatefulWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (_) => SettingsSheet(controller: c),
     );
   }
@@ -82,7 +78,6 @@ class _SettingsSheetState extends State<SettingsSheet> {
             decoration: InputDecoration(
               labelText: 'Anthropic API key (optional)',
               hintText: 'sk-ant-...',
-              border: const OutlineInputBorder(),
               suffixIcon: IconButton(
                 icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
                 onPressed: () => setState(() => _obscure = !_obscure),

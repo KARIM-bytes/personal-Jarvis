@@ -13,10 +13,6 @@ class GoalsSheet extends StatefulWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (_) => GoalsSheet(controller: c),
     );
   }
@@ -62,7 +58,6 @@ class _GoalsSheetState extends State<GoalsSheet> {
               hintText:
                   'e.g. Get fit and run a 10k, ship my side project, read 20 '
                   'minutes a day, be more present with family.',
-              border: OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: 16),

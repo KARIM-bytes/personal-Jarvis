@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import '../models/chat_message.dart';
 import '../state/conversation_controller.dart';
 import '../theme/app_theme.dart';
+import 'widgets/glass.dart';
 import 'widgets/jarvis_orb.dart';
 
-/// The full-screen, colorful Jarvis conversation. Jarvis speaks; the user types.
+/// The full-screen Jarvis conversation. Jarvis speaks; the user types.
 class ConversationScreen extends StatefulWidget {
   const ConversationScreen({
     super.key,
@@ -68,8 +69,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
       if (_scroll.hasClients) {
         _scroll.animateTo(
           _scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
+          duration: AppTheme.normal,
+          curve: AppTheme.ease,
         );
       }
     });
@@ -99,20 +100,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF10233A), Color(0xFF0B0E12), Color(0xFF190B2E)],
-          ),
-        ),
+      body: AuroraBackground(
         child: SafeArea(
           child: Column(
             children: [
               _header(),
               Expanded(child: _messageList()),
-              if (_c.thinking) _typingIndicator(),
               _inputBar(),
             ],
           ),
@@ -123,11 +116,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   Widget _header() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      padding: const EdgeInsets.fromLTRB(
+          AppTheme.s2, AppTheme.s1, AppTheme.s1, AppTheme.s1),
       child: Row(
         children: [
           JarvisOrb(mood: _mood, controller: _orb, size: 56),
-          const SizedBox(width: 14),
+          const SizedBox(width: AppTheme.s2),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,21 +130,28 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     style: TextStyle(
                         letterSpacing: 4,
                         fontWeight: FontWeight.w700,
-                        fontSize: 16)),
-                Text(
-                  switch (_mood) {
-                    OrbMood.speaking => 'Speaking…',
-                    OrbMood.thinking => 'Thinking…',
-                    OrbMood.listening => 'Listening…',
-                    OrbMood.idle => 'Your guide',
-                  },
-                  style: const TextStyle(color: Colors.white54, fontSize: 12.5),
+                        fontSize: 15)),
+                const SizedBox(height: 2),
+                AnimatedSwitcher(
+                  duration: AppTheme.fast,
+                  child: Text(
+                    switch (_mood) {
+                      OrbMood.speaking => 'Speaking…',
+                      OrbMood.thinking => 'Thinking…',
+                      OrbMood.listening => 'Listening…',
+                      OrbMood.idle => 'Your guide',
+                    },
+                    key: ValueKey(_mood),
+                    style: const TextStyle(
+                        color: AppTheme.textTertiary, fontSize: 12.5),
+                  ),
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(Icons.close_rounded,
+                color: AppTheme.textTertiary),
             onPressed: () async {
               await _c.silence();
               if (mounted) Navigator.of(context).maybePop();
@@ -163,104 +164,146 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   Widget _messageList() {
     final messages = _c.messages;
+    final showTyping = _c.thinking;
     return ListView.builder(
       controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      itemCount: messages.length,
-      itemBuilder: (context, i) => _bubble(messages[i]),
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+          AppTheme.s2, AppTheme.s1, AppTheme.s2, AppTheme.s1),
+      itemCount: messages.length + (showTyping ? 1 : 0),
+      itemBuilder: (context, i) {
+        if (i == messages.length) return _thinkingBubble();
+        return _bubble(messages[i]);
+      },
     );
   }
 
   Widget _bubble(ChatMessage m) {
     final jarvis = m.fromJarvis;
-    return Align(
-      alignment: jarvis ? Alignment.centerLeft : Alignment.centerRight,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
-        ),
-        decoration: BoxDecoration(
-          gradient: jarvis
-              ? const LinearGradient(
-                  colors: [Color(0xFF2EC5FF), Color(0xFF7A5CFF)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: jarvis ? null : AppTheme.surfaceRaised,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(jarvis ? 4 : 18),
-            bottomRight: Radius.circular(jarvis ? 18 : 4),
+    return Entrance(
+      child: Align(
+        alignment: jarvis ? Alignment.centerLeft : Alignment.centerRight,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppTheme.s2, vertical: 12),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.78,
           ),
-        ),
-        child: Text(
-          m.text,
-          style: TextStyle(
-            color: jarvis ? Colors.black.withValues(alpha: 0.9) : Colors.white,
-            height: 1.35,
-            fontWeight: jarvis ? FontWeight.w500 : FontWeight.w400,
+          decoration: BoxDecoration(
+            gradient: jarvis ? null : AppTheme.heroGradient,
+            color: jarvis ? const Color(0x0DFFFFFF) : null,
+            border: jarvis
+                ? Border.all(color: AppTheme.glassBorder)
+                : null,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(AppTheme.rMd),
+              topRight: const Radius.circular(AppTheme.rMd),
+              bottomLeft: Radius.circular(jarvis ? 6 : AppTheme.rMd),
+              bottomRight: Radius.circular(jarvis ? AppTheme.rMd : 6),
+            ),
+            boxShadow: jarvis
+                ? const []
+                : [
+                    BoxShadow(
+                        color: AppTheme.accent.withValues(alpha: 0.18),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4)),
+                  ],
+          ),
+          child: Text(
+            m.text,
+            style: TextStyle(
+              fontSize: 14.5,
+              height: 1.42,
+              fontWeight: jarvis ? FontWeight.w400 : FontWeight.w600,
+              color: jarvis
+                  ? AppTheme.textPrimary
+                  : const Color(0xFF03121C),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _typingIndicator() {
-    return const Padding(
-      padding: EdgeInsets.only(left: 24, bottom: 4),
+  Widget _thinkingBubble() {
+    return const Entrance(
       child: Align(
         alignment: Alignment.centerLeft,
-        child: Text('Jarvis is thinking…',
-            style: TextStyle(color: Colors.white38, fontSize: 12)),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 6),
+          child: GlassCard(
+            radius: AppTheme.rMd,
+            padding:
+                EdgeInsets.symmetric(horizontal: AppTheme.s2, vertical: 14),
+            child: TypingDots(),
+          ),
+        ),
       ),
     );
   }
 
   Widget _inputBar() {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-          12, 8, 12, 8 + MediaQuery.of(context).viewInsets.bottom),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _input,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _send(),
-              onChanged: _onTyped,
-              minLines: 1,
-              maxLines: 4,
-              decoration: InputDecoration(
-                hintText: 'Reply to Jarvis…',
-                filled: true,
-                fillColor: Colors.white10,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
+      padding: EdgeInsets.fromLTRB(AppTheme.s2, AppTheme.s1, AppTheme.s2,
+          AppTheme.s1 + MediaQuery.of(context).viewInsets.bottom),
+      child: GlassCard(
+        blur: true,
+        radius: AppTheme.rLg,
+        padding: const EdgeInsets.fromLTRB(AppTheme.s1, 6, 6, 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _input,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _send(),
+                onChanged: _onTyped,
+                minLines: 1,
+                maxLines: 4,
+                style: const TextStyle(fontSize: 14.5),
+                decoration: const InputDecoration(
+                  hintText: 'Reply to Jarvis…',
+                  filled: false,
+                  border: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF2EC5FF), Color(0xFF7A5CFF)],
+            const SizedBox(width: AppTheme.s1),
+            AnimatedOpacity(
+              duration: AppTheme.fast,
+              opacity: _c.thinking ? 0.4 : 1,
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: AppTheme.heroGradient,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                        color: AppTheme.accent.withValues(alpha: 0.3),
+                        blurRadius: 14),
+                  ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: _c.thinking ? null : _send,
+                    child: const Icon(Icons.arrow_upward_rounded,
+                        color: Color(0xFF03121C), size: 21),
+                  ),
+                ),
               ),
-              shape: BoxShape.circle,
             ),
-            child: IconButton(
-              icon: const Icon(Icons.send_rounded, color: Colors.black),
-              onPressed: _c.thinking ? null : _send,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

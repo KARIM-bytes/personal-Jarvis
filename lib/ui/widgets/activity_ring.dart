@@ -101,6 +101,18 @@ class _RingPainter extends CustomPainter {
         arc,
       );
     }
+
+    // A bright tip at the leading edge so the arc reads as in motion.
+    if (progress > 0.04) {
+      final tipAngle = start + (progress % 1.0) * 2 * math.pi;
+      final tip = center +
+          Offset(math.cos(tipAngle) * radius, math.sin(tipAngle) * radius);
+      canvas.drawCircle(
+        tip,
+        stroke * 0.28,
+        Paint()..color = Colors.white.withValues(alpha: 0.85),
+      );
+    }
   }
 
   @override

@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:android_intent_plus/flag.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
+import '../theme/app_theme.dart';
 import 'widgets/jarvis_orb.dart';
 
 /// The floating card shown over other apps when a budget is blown. Runs in the
@@ -58,80 +60,123 @@ class _OverlayBubbleState extends State<OverlayBubble> {
     return Material(
       color: Colors.black.withValues(alpha: 0.92),
       child: Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 24),
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF0C1524), Color(0xFF120A22)],
+        // Ease the card in: slight lift + scale, never a pop.
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 380),
+          curve: AppTheme.ease,
+          builder: (_, v, child) => Opacity(
+            opacity: v,
+            child: Transform.scale(
+              scale: 0.94 + 0.06 * v,
+              child: Transform.translate(
+                  offset: Offset(0, 20 * (1 - v)), child: child),
             ),
-            border: Border.all(color: const Color(0xFF2EC5FF), width: 1.2),
-            boxShadow: const [
-              BoxShadow(color: Color(0x552EC5FF), blurRadius: 40, spreadRadius: 2),
-            ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Speaking cadence: the overlay voices its opener as it appears.
-              const JarvisOrb(mood: OrbMood.speaking, size: 96),
-              const SizedBox(height: 16),
-              const Text('JARVIS',
-                  style: TextStyle(
-                      color: Colors.white,
-                      letterSpacing: 4,
-                      fontWeight: FontWeight.w700)),
-              const SizedBox(height: 12),
-              Text(
-                _message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: Colors.white, height: 1.4, fontSize: 15.5),
-              ),
-              const SizedBox(height: 22),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white70,
-                        side: const BorderSide(color: Colors.white24),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
-                      ),
-                      onPressed: () => FlutterOverlayWindow.closeOverlay(),
-                      child: const Text('Dismiss'),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppTheme.rLg),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+              child: Container(
+                margin: EdgeInsets.zero,
+                padding: const EdgeInsets.all(AppTheme.s3),
+                constraints: const BoxConstraints(maxWidth: 340),
+                decoration: BoxDecoration(
+                  color: const Color(0x14FFFFFF),
+                  borderRadius: BorderRadius.circular(AppTheme.rLg),
+                  border: Border.all(color: const Color(0x1FFFFFFF)),
+                  boxShadow: [
+                    BoxShadow(
+                        color: AppTheme.accent.withValues(alpha: 0.15),
+                        blurRadius: 60,
+                        spreadRadius: 4),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const JarvisOrb(mood: OrbMood.speaking, size: 96),
+                    const SizedBox(height: AppTheme.s2),
+                    const Text('JARVIS',
+                        style: TextStyle(
+                            color: AppTheme.textPrimary,
+                            letterSpacing: 4,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700)),
+                    const SizedBox(height: AppTheme.s2),
+                    Text(
+                      _message,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          color: AppTheme.textPrimary,
+                          height: 1.45,
+                          fontSize: 15),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF2EC5FF), Color(0xFF7A5CFF)],
+                    const SizedBox(height: AppTheme.s3),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _pillButton(
+                            label: 'Dismiss',
+                            onTap: () => FlutterOverlayWindow.closeOverlay(),
+                          ),
                         ),
-                      ),
-                      child: TextButton(
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
+                        const SizedBox(width: AppTheme.s2),
+                        Expanded(
+                          child: _pillButton(
+                            label: 'Talk to Jarvis',
+                            onTap: _openApp,
+                            hero: true,
+                          ),
                         ),
-                        onPressed: _openApp,
-                        child: const Text('Talk to Jarvis',
-                            style: TextStyle(fontWeight: FontWeight.w700)),
-                      ),
+                      ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pillButton({
+    required String label,
+    required VoidCallback onTap,
+    bool hero = false,
+  }) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        gradient: hero ? AppTheme.heroGradient : null,
+        color: hero ? null : const Color(0x0FFFFFFF),
+        borderRadius: BorderRadius.circular(AppTheme.rSm + 2),
+        border: hero ? null : Border.all(color: AppTheme.glassBorder),
+        boxShadow: hero
+            ? [
+                BoxShadow(
+                    color: AppTheme.accent.withValues(alpha: 0.3),
+                    blurRadius: 16),
+              ]
+            : const [],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppTheme.rSm + 2),
+          onTap: onTap,
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: hero ? FontWeight.w700 : FontWeight.w600,
+                color: hero
+                    ? const Color(0xFF03121C)
+                    : AppTheme.textSecondary,
+              ),
+            ),
           ),
         ),
       ),

@@ -17,9 +17,10 @@ void main() {
 /// name from the native OverlayService). Renders the floating Jarvis card.
 @pragma('vm:entry-point')
 void overlayMain() {
-  runApp(const MaterialApp(
+  runApp(MaterialApp(
     debugShowCheckedModeBanner: false,
-    home: OverlayBubble(),
+    theme: AppTheme.dark,
+    home: const OverlayBubble(),
   ));
 }
 
