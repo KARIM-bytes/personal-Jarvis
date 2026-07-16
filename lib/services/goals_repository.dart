@@ -76,6 +76,16 @@ class GoalsRepository {
     );
   }
 
+  /// Clears the "already messaged today" record for one app, so its next
+  /// breach can fire immediately (used when the user changes that app's
+  /// budget — new rules, fresh slate).
+  Future<void> clearMessageStateFor(String packageName) async {
+    final state = await loadMessageState();
+    if (state.remove(packageName) != null) {
+      await saveMessageState(state);
+    }
+  }
+
   Future<void> savePendingConversation(ConversationSeed seed) async {
     final prefs = await _prefs;
     await prefs.setString(

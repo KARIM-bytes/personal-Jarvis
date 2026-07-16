@@ -41,6 +41,7 @@ dependencies:
   flutter_tts: ^4.2.5
   flutter_overlay_window: ^0.5.0
   android_intent_plus: ^6.0.0
+  speech_to_text: ^7.4.0
 
 dev_dependencies:
   flutter_test:

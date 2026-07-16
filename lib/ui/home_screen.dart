@@ -91,7 +91,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 children: [
                   _summaryHeader(),
                   const SizedBox(height: 18),
-                  if (!_c.isReady || !_c.hasOverlayPermission) ...[
+                  if (!_c.isReady ||
+                      !_c.hasOverlayPermission ||
+                      !_c.batteryUnrestricted) ...[
                     _setupCard(),
                     const SizedBox(height: 16),
                   ],
@@ -310,6 +312,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               subtitle: 'Let Jarvis appear over other apps to talk to you.',
               granted: _c.hasOverlayPermission,
               onTap: _c.requestOverlayPermission,
+            ),
+            PermissionTile(
+              icon: Icons.battery_charging_full,
+              title: 'Battery unrestricted',
+              subtitle: 'Stops Android from delaying Jarvis\'s checks.',
+              granted: _c.batteryUnrestricted,
+              onTap: _c.requestBatteryUnrestricted,
             ),
           ],
         ),

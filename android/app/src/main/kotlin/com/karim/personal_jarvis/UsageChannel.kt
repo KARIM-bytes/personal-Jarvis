@@ -1,6 +1,7 @@
 package com.karim.personal_jarvis
 
 import android.app.AppOpsManager
+import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
@@ -73,19 +74,68 @@ object UsageChannel {
         val usm =
             context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val end = System.currentTimeMillis()
-        val begin = Calendar.getInstance().apply {
+        val midnight = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
 
-        val aggregated = usm.queryAndAggregateUsageStats(begin, end)
+        // Committed totals. These LAG: Android only folds a session in after the
+        // app goes to background, so the session the user is in right now is
+        // missing — the exact case a nudge is for.
+        val totals = HashMap<String, Long>()
+        for ((pkg, stats) in usm.queryAndAggregateUsageStats(midnight, end)) {
+            val t = stats.totalTimeInForeground
+            if (t > 0L) totals[pkg] = t
+        }
+
+        // Live tally from raw resume/pause events, including the still-open
+        // session up to "now". Start the query before midnight to catch a
+        // session that spans it; counted time is clamped to [midnight, end].
+        val events = usm.queryEvents(midnight - 4 * 60 * 60 * 1000L, end)
+        val event = UsageEvents.Event()
+        val startTs = HashMap<String, Long>()
+        val depth = HashMap<String, Int>()
+        val live = HashMap<String, Long>()
+        @Suppress("DEPRECATION")
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            val pkg = event.packageName ?: continue
+            when (event.eventType) {
+                UsageEvents.Event.MOVE_TO_FOREGROUND -> {
+                    val d = depth[pkg] ?: 0
+                    if (d <= 0 || startTs[pkg] == null) startTs[pkg] = event.timeStamp
+                    depth[pkg] = maxOf(d, 0) + 1
+                }
+                UsageEvents.Event.MOVE_TO_BACKGROUND -> {
+                    val d = (depth[pkg] ?: 0) - 1
+                    depth[pkg] = maxOf(d, 0)
+                    if (d <= 0) {
+                        val s = startTs.remove(pkg)
+                        if (s != null) {
+                            val from = maxOf(s, midnight)
+                            if (event.timeStamp > from) {
+                                live[pkg] = (live[pkg] ?: 0L) + (event.timeStamp - from)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Sessions still open — the app on screen right now.
+        for ((pkg, s) in startTs) {
+            val from = maxOf(s, midnight)
+            if (end > from) live[pkg] = (live[pkg] ?: 0L) + (end - from)
+        }
+        // Both sources only ever undercount, so the larger is closer to truth.
+        for ((pkg, t) in live) {
+            totals[pkg] = maxOf(totals[pkg] ?: 0L, t)
+        }
+
         val pm = context.packageManager
         val result = ArrayList<Map<String, Any>>()
-
-        for ((pkg, stats) in aggregated) {
-            val total = stats.totalTimeInForeground
+        for ((pkg, total) in totals) {
             if (total <= 0L) continue
             val label = try {
                 pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()

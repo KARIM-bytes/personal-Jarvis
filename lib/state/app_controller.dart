@@ -27,6 +27,7 @@ class AppController extends ChangeNotifier {
   bool _hasUsageAccess = false;
   bool _notificationsGranted = false;
   bool _hasOverlayPermission = false;
+  bool _batteryUnrestricted = false;
   bool _hasApiKey = false;
   String _goals = '';
   List<WatchedApp> _watchedApps = [];
@@ -37,6 +38,7 @@ class AppController extends ChangeNotifier {
   bool get hasUsageAccess => _hasUsageAccess;
   bool get notificationsGranted => _notificationsGranted;
   bool get hasOverlayPermission => _hasOverlayPermission;
+  bool get batteryUnrestricted => _batteryUnrestricted;
   bool get hasApiKey => _hasApiKey;
   bool get isReady => _hasUsageAccess && _notificationsGranted;
   String get goals => _goals;
@@ -79,6 +81,8 @@ class AppController extends ChangeNotifier {
     final notif = await FlutterForegroundTask.checkNotificationPermission();
     _notificationsGranted = notif == NotificationPermission.granted;
     _hasOverlayPermission = await _overlay.hasPermission();
+    _batteryUnrestricted =
+        await FlutterForegroundTask.isIgnoringBatteryOptimizations;
     _goals = await _repo.loadGoals();
     _watchedApps = await _repo.loadWatchedApps();
     _hasApiKey = (await _repo.loadApiKey())?.isNotEmpty ?? false;
@@ -108,6 +112,11 @@ class AppController extends ChangeNotifier {
   Future<void> requestOverlayPermission() async {
     await _overlay.requestPermission();
     // Returns via the OS back stack; refresh() runs on resume.
+  }
+
+  Future<void> requestBatteryUnrestricted() async {
+    await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+    await refresh();
   }
 
   /// Any nudge waiting to open as a conversation (from a breach). Cleared once
@@ -157,6 +166,8 @@ class AppController extends ChangeNotifier {
       ),
     ];
     await _repo.saveWatchedApps(_watchedApps);
+    // Fresh watch, fresh slate — an earlier message today shouldn't mute it.
+    await _repo.clearMessageStateFor(package);
     notifyListeners();
   }
 
@@ -166,6 +177,8 @@ class AppController extends ChangeNotifier {
             a.packageName == package ? a.copyWith(dailyBudget: budget) : a)
         .toList();
     await _repo.saveWatchedApps(_watchedApps);
+    // New budget, fresh slate: let the next breach fire immediately.
+    await _repo.clearMessageStateFor(package);
     notifyListeners();
   }
 
